@@ -3342,6 +3342,107 @@ static ConsoleCommand pgRawStreamer_AssetsCountCmd("assetscount", []()
 #endif
 });
 
+// known data file type names, used to label entries in the game's data file type enum
+// (the enum only stores hashes; unmatched entries are printed as raw hashes)
+static const char* const g_knownDataFileTypeNames[] = {
+	"RPF_FILE",
+	"DLC_ITYP_REQUEST",
+	"DLC_POP_GROUPS",
+	"DLC_WEAPON_PICKUPS",
+	"WEAPONINFO_FILE",
+	"WEAPONINFO_FILE_PATCH",
+	"WEAPON_METADATA_FILE",
+	"WEAPON_ANIMATIONS_FILE",
+	"WEAPON_COMPONENTS_FILE",
+	"WEAPONCOMPONENTSINFO_FILE",
+	"WEAPON_SHOP_INFO",
+	"WEAPON_FX_FILE",
+	"AMMO_INFO_FILE",
+	"EXPLOSION_INFO_FILE",
+	"PICKUP_DATA_FILE",
+	"ITEM_DATABASE_FILE",
+	"ITEMDATABASE_FILE",
+	"INVENTORY_FILE",
+	"CATALOG_FILE",
+	"SHOP_CATALOG_FILE",
+	"LOOT_FILE",
+	"PED_METADATA_FILE",
+	"VEHICLE_METADATA_FILE",
+	"HANDLING_FILE",
+	"VEHICLE_LAYOUTS_FILE",
+	"AUDIO_GAMEDATA",
+	"AUDIO_SOUNDDATA",
+	"AUDIO_WAVEPACK",
+	"TEXTFILE_METAFILE",
+};
+
+static const char* GetKnownDataFileTypeName(uint32_t hash)
+{
+	for (const char* name : g_knownDataFileTypeNames)
+	{
+		if (HashRageString(name) == hash)
+		{
+			return name;
+		}
+	}
+
+	return nullptr;
+}
+
+static std::string DescribeDataFileMounter(int fileType)
+{
+	if (!CDataFileMount::sm_Interfaces)
+	{
+		return "(mount interfaces not initialized)";
+	}
+
+	auto mounter = CDataFileMount::sm_Interfaces[fileType];
+
+	if (!mounter)
+	{
+		return "(no mounter)";
+	}
+
+	return SearchTypeName(mounter);
+}
+
+// lists every data file type the game knows about, and which mounter handles it
+static ConsoleCommand dataFileTypesCmd("datafile_types", []()
+{
+	if (!g_dataFileTypes)
+	{
+		trace("Data file type enum not found.\n");
+		return;
+	}
+
+	int count = 0;
+
+	for (EnumEntry* i = g_dataFileTypes; (i->hash != 0) || (i->index != 0xFFFFFFFF); ++i)
+	{
+		auto name = GetKnownDataFileTypeName(i->hash);
+
+		trace("[%3d] %08x %-28s -> %s\n", i->index, i->hash, name ? name : "?", DescribeDataFileMounter(i->index));
+		count++;
+	}
+
+	trace("%d data file types.\n", count);
+});
+
+// checks whether a single data_file type name resolves, e.g. `datafile_probe WEAPONINFO_FILE`
+static ConsoleCommand dataFileProbeCmd("datafile_probe", [](const std::string& typeName)
+{
+	int fileType = LookupDataFileType(typeName);
+
+	if (fileType < 0)
+	{
+		trace("%s (%08x): not a data file type in this game.\n", typeName, HashRageString(boost::to_upper_copy(typeName).c_str()));
+		return;
+	}
+
+	trace("%s: type index %d, mounter %s, resolved by data_file loader: %s\n", typeName, fileType, DescribeDataFileMounter(fileType),
+		LookupDataFileMounter(typeName) ? "yes" : "no");
+});
+
 const rage::chunkyArray<rage::fiCollection::RawEntry, 1024, 64>& rage::GetPgRawStreamerEntries()
 {
 	return g_GetRawStreamer()->m_entries;
